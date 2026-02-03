@@ -1,51 +1,54 @@
 # Perplexity CLI
 
-A beautiful, feature-rich command-line tool for querying the Perplexity API directly from your terminal.
+> A beautiful, feature-rich command-line interface for the Perplexity AI API
 
-![demo](https://img.shields.io/badge/interface-CLI-blue)
-![python](https://img.shields.io/badge/python-3.8+-green)
-![license](https://img.shields.io/badge/license-MIT-purple)
+[![Python](https://img.shields.io/badge/python-3.8+-blue.svg)](https://python.org)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![CLI](https://img.shields.io/badge/interface-CLI-purple.svg)](https://github.com/Dodothereal/perplexity-cli)
 
-## Features
+![Demo](assets/demo.png)
+
+## ✨ Features
 
 - **Beautiful Terminal UI** - ASCII art banner, colored output, status bars, and formatted messages
 - **Interactive Chat Mode** - Full REPL with slash commands and conversation history
 - **Markdown Formatting** - Supports bold, italic, code blocks, headers, and lists
 - **Rich Text Output** - Syntax highlighting, colored code blocks, and styled links
-- **Stream Responses** - Watch answers generate in real-time with word wrapping
-- **Save/Load Conversations** - Persist chats in `~/.cache/perplexity/`
-- **Export to Markdown** - Export conversations as clean `.md` files
-- **Custom System Prompts** - Customize the assistant's behavior
+- **Real-time Streaming** - Watch answers generate with proper word wrapping
+- **Conversation Persistence** - Save/load chats and export to Markdown
+- **Custom System Prompts** - Create custom AI personas
 - **Citations Support** - View source citations for research answers
-- **Environment Variables** - Use `.env` file for secure API key management
+- **Secure API Keys** - `.env` file support for secure API key management
 
-## Installation
+## 🚀 Quick Start
 
-1. Copy the `perplexity` script to your local bin directory:
 ```bash
-cp perplexity ~/.local/bin/
-chmod +x ~/.local/bin/perplexity
-```
-
-2. Make sure `~/.local/bin` is in your PATH:
-```bash
-export PATH="$HOME/.local/bin:$PATH"
-```
-
-3. Install dependencies:
-```bash
+# Install dependencies
 pip install openai python-dotenv
+
+# Copy the script
+cp perplexity ~/.local/bin/perplexity
+chmod +x ~/.local/bin/perplexity
+
+# Add to PATH (if not already)
+export PATH="$HOME/.local/bin:$PATH"
+
+# Start chatting!
+perplexity --chat
 ```
 
-## Setup
+## ⚙️ Setup
 
-### Option 1: Environment Variable
+### API Key
+
+Get your API key from [perplexity.ai/settings/api](https://www.perplexity.ai/settings/api)
+
+#### Option 1: Environment Variable
 ```bash
 export PERPLEXITY_API_KEY="your-api-key-here"
 ```
 
-### Option 2: .env File (Recommended)
-Create `~/.perplexity/.env` with:
+#### Option 2: .env File (Recommended)
 ```bash
 mkdir -p ~/.perplexity
 cat > ~/.perplexity/.env << 'EOF'
@@ -53,21 +56,27 @@ PERPLEXITY_API_KEY=your-api-key-here
 EOF
 ```
 
-Get your API key from: https://www.perplexity.ai/settings/api
+## 📖 Usage
 
-## Usage
-
-### Interactive Chat Mode
-
-Start an interactive chat session with a beautiful terminal interface:
+### Interactive Chat
 
 ```bash
-perplexity --chat
-# or
-perplexity -c
+perplexity --chat      # or -c
+perplexity --chat --stream
+perplexity --chat --model sonar-medium-online
+perplexity --chat --system "You are a sarcastic comedian"
 ```
 
-**Slash Commands:**
+### Single Query
+
+```bash
+perplexity "What is the capital of France?"
+perplexity "Explain quantum physics" --stream
+perplexity "Latest AI news" --search
+perplexity "Debug this code" --system "You are a Python expert"
+```
+
+## 🎮 Interactive Commands
 
 | Command | Description |
 |---------|-------------|
@@ -86,78 +95,76 @@ perplexity -c
 - `Ctrl+C` - Interrupt current response
 - `Ctrl+D` - Exit chat mode
 
-### Single Query Mode
+## 🔧 Options
 
-```bash
-perplexity "your question here"
-```
+| Option | Short | Description | Default |
+|--------|-------|-------------|---------|
+| `query` | - | Your question or search query | - |
+| `--chat` | `-c` | Enter interactive chat mode | - |
+| `--model` | - | Model to use | `sonar-pro` |
+| `--search` | - | Use research-focused mode | - |
+| `--stream` | - | Stream responses in real-time | - |
+| `--system` | `-s` | Custom system prompt | - |
+| `--api-key` | - | Override API key | - |
+| `--no-color` | - | Disable colored output | - |
 
-Examples:
-```bash
-perplexity "What is the capital of France?"
-perplexity "Latest AI developments" --search
-perplexity "Explain quantum computing" --stream
-perplexity "Help debug my Python code" --system "You are a coding expert"
-```
+## 🤖 Available Models
 
-## Options
+| Model | Best For | Speed |
+|-------|----------|-------|
+| `sonar-pro` | General queries with web citations | ⭐⭐ |
+| `sonar-medium-online` | Faster responses | ⭐⭐⭐ |
+| `sonar-small-online` | Quick answers | ⭐⭐⭐⭐ |
 
-| Option | Short | Description |
-|--------|-------|-------------|
-| `query` | - | Your question or search query |
-| `--chat` | `-c` | Enter interactive chat mode |
-| `--model` | - | Model: `sonar-pro`, `sonar-medium-online`, `sonar-small-online` |
-| `--search` | - | Use research-focused mode |
-| `--stream` | - | Stream responses in real-time |
-| `--system` | `-s` | Custom system prompt |
-| `--api-key` | - | Override API key |
-| `--no-color` | - | Disable colored output |
-
-## Models
-
-- **sonar-pro**: Best for general queries with web citations (default)
-- **sonar-medium-online**: Faster responses
-- **sonar-small-online**: Fastest responses
-
-## Examples
+## 💡 Examples
 
 ### Quick Question
 ```bash
 $ perplexity "What is the capital of Australia?"
+
+┌─ Perplexity ───────────────────────────────────────
+│ Canberra, located in the Australian Capital Territory.
+└─────────────────────────────────────────────────────
 ```
 
 ### Research with Citations
 ```bash
 $ perplexity "Latest developments in AI agents" --search
+
+┌─ Perplexity ───────────────────────────────────────
+│ AI agents are evolving rapidly with new capabilities...
+
+📚 Sources
+  [1] https://perplexity.ai/blog/ai-agents
+  [2] https://openai.com/research/agents
+└─────────────────────────────────────────────────────
 ```
 
-### Streaming Response
+### Custom Persona
 ```bash
-$ perplexity "Explain quantum entanglement" --stream
+$ perplexity -s "You are a sarcastic pirate captain" "Tell me a joke"
+
+┌─ Perplexity ───────────────────────────────────────
+│ Arrr, why did the pirate go to medical school?
+│ Because he wanted to study "arrr-thritis", ye scallywag!
+└─────────────────────────────────────────────────────
 ```
 
-### Custom System Prompt
+## 💾 Conversation History
+
+Conversations are saved automatically to `~/.cache/perplexity/` as JSON files.
+
+### Managing Conversations
+
 ```bash
-$ perplexity --chat --system "You are a sarcastic comedian"
-```
-
-### Interactive with Streaming
-```bash
-$ perplexity --chat --stream --model sonar-medium-online
-```
-
-## Conversation History
-
-Conversations are saved to `~/.cache/perplexity/` as JSON files.
-
-**Access during chat:**
-```bash
+# List saved conversations
 You: /history
 
 📂 Saved Conversations
   • chat_20240203_153045.json (5 msgs) - 2024-02-03T15:30:45
   • chat_20240203_140000.json (12 msgs) - 2024-02-03T14:00:00
 
+# Load a conversation
 You: /load
 
 [1] chat_20240203_153045.json (5 msgs)
@@ -165,16 +172,14 @@ You: /load
 
 Load which one? (number or 'cancel'): 1
 ✓ Loaded 5 messages.
-```
 
-**Export Example:**
-```bash
+# Export to Markdown
 You: /export
 Output filename (e.g. chat.md): my_research.md
 ✓ Exported to: my_research.md
 ```
 
-## Terminal Interface
+## 🎨 Terminal Interface
 
 ### Welcome Screen
 ```
@@ -214,22 +219,63 @@ Commands:
   [2] https://example.com/qubits-explained
 ```
 
-## Tips
+## 📁 File Locations
 
-- Use `--system` to create different AI personas (e.g., "You are a sarcastic comedian")
-- In chat mode, press Ctrl+C to interrupt a long response
-- Use `--stream` for a more interactive experience
-- Chat with `--search` for complex research topics
-- Type `/help` anytime during chat to see all commands
+| File/Folder | Location | Purpose |
+|-------------|----------|---------|
+| `.env` | `~/.perplexity/.env` | API key configuration |
+| Conversations | `~/.cache/perplexity/` | Saved chat history |
+| Script | `~/.local/bin/perplexity` | CLI executable |
 
-## Screenshots
+## 💬 Tips & Tricks
 
-Coming soon! Run `perplexity --chat` to see the beautiful interface in action.
+- **Custom Personas**: Use `--system` to create different AI personalities
+  - `"You are a sarcastic comedian"`
+  - `"You are a senior code reviewer"`
+  - `"You explain things like I'm 5"`
 
-## License
+- **Faster Responses**: Use `sonar-small-online` for quick answers
 
-MIT
+- **Interrupting**: Press `Ctrl+C` to interrupt long responses
 
-## Contributing
+- **Research**: Use `--search` for complex topics requiring citations
 
-Contributions welcome! Feel free to open issues or pull requests.
+- **Documentation**: Export chats to Markdown for documentation
+
+## 🐛 Troubleshooting
+
+### API Key Not Found
+```bash
+Error: API key not found. Set PERPLEXITY_API_KEY or create ~/.perplexity/.env
+```
+**Solution**: Create an `.env` file or set the environment variable.
+
+### Module Not Found
+```bash
+ModuleNotFoundError: No module named 'openai'
+```
+**Solution**: Install dependencies with `pip install openai python-dotenv`
+
+### Colors Not Showing
+Colors are automatically disabled when piping to a file or using `--no-color`.
+
+## 📄 License
+
+MIT License - see [LICENSE](LICENSE) for details.
+
+## 🤝 Contributing
+
+Contributions are welcome! Feel free to:
+- Open an issue for bugs or feature requests
+- Submit a pull request with improvements
+- Share your creative prompt ideas
+
+## 🙏 Credits
+
+- Built with [Perplexity AI API](https://www.perplexity.ai/)
+- Inspired by [Ollama CLI](https://ollama.com/)
+- ASCII art generated with `figlet`
+
+---
+
+**Made with ♥ by [Dodothereal](https://github.com/Dodothereal)**
