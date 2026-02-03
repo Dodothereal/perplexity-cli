@@ -1,29 +1,319 @@
 #!/usr/bin/env python3
 """
 Perplexity CLI - Query Perplexity API from terminal
-Usage: perplexity "your question here"
+Usage: perplexity "your question here" or perplexity --chat for interactive mode
 """
 
 import argparse
+import json
 import os
+import re
 import sys
+from datetime import datetime
+from pathlib import Path
 
-# Default API key
+# Default API key (use PERPLEXITY_API_KEY environment variable)
 DEFAULT_API_KEY = os.environ.get("PERPLEXITY_API_KEY")
+
+# ANSI color codes
+class Colors:
+    RESET = "\033[0m"
+    BOLD = "\033[1m"
+    DIM = "\033[2m"
+    UNDERLINE = "\033[4m"
+
+    # Foreground colors
+    BLACK = "\033[30m"
+    RED = "\033[31m"
+    GREEN = "\033[32m"
+    YELLOW = "\033[33m"
+    BLUE = "\033[34m"
+    MAGENTA = "\033[35m"
+    CYAN = "\033[36m"
+    WHITE = "\033[37m"
+    BRIGHT_BLUE = "\033[94m"
+
+    # Background colors
+    BG_BLACK = "\033[40m"
+    BG_RED = "\033[41m"
+    BG_GREEN = "\033[42m"
+    BG_YELLOW = "\033[43m"
+    BG_BLUE = "\033[44m"
+    BG_MAGENTA = "\033[45m"
+    BG_CYAN = "\033[46m"
+    BG_WHITE = "\033[47m"
+
+
+def print_header(text):
+    """Print a styled header"""
+    print(f"\n{Colors.BOLD}{Colors.CYAN}{'=' * 60}{Colors.RESET}")
+    print(f"{Colors.BOLD}{Colors.CYAN}{text.center(60)}{Colors.RESET}")
+    print(f"{Colors.BOLD}{Colors.CYAN}{'=' * 60}{Colors.RESET}\n")
+
+
+def print_user(text):
+    """Print user message with styling"""
+    print(f"{Colors.BOLD}{Colors.GREEN}You:{Colors.RESET} {text}")
+
+
+def print_assistant(text):
+    """Print assistant message with styling"""
+    print(f"{Colors.BOLD}{Colors.BLUE}Perplexity:{Colors.RESET}")
+    for line in text.split('\n'):
+        if line.strip().startswith('[') and '](' in line:
+            # Handle markdown links
+            print(f"  {Colors.DIM}{line}{Colors.RESET}")
+        else:
+            print(f"  {line}")
+
+
+def print_citations(citations):
+    """Print citations with styling"""
+    if citations:
+        print(f"\n{Colors.BOLD}{Colors.YELLOW}Sources:{Colors.RESET}")
+        for i, citation in enumerate(citations, 1):
+            print(f"  [{i}] {Colors.DIM}{citation}{Colors.RESET}")
+
+
+def format_markdown(text):
+    return text
+
+
+class ChatSession:
+    """Manage chat session with conversation history"""
+
+    def __init__(self, model="sonar-pro", system_prompt=None):
+        self.model = model
+        self.system_prompt = system_prompt or "You are a helpful assistant."
+        self.messages = [{"role": "system", "content": self.system_prompt}]
+        self.history_dir = Path.home() / ".cache" / "perplexity"
+        self.history_dir.mkdir(parents=True, exist_ok=True)
+
+    def add_message(self, role, content):
+        self.messages.append({"role": role, "content": content})
+
+    def get_messages(self):
+        return self.messages
+
+    def save_session(self, name=None):
+        if not name:
+            name = f"chat_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+        filepath = self.history_dir / name
+
+        with open(filepath, 'w') as f:
+            json.dump({
+                "timestamp": datetime.now().isoformat(),
+                "model": self.model,
+                "messages": self.messages
+            }, f, indent=2)
+
+        return filepath
+
+    def list_sessions(self):
+        sessions = []
+        for file in sorted(self.history_dir.glob("chat_*.json")):
+            try:
+                with open(file) as f:
+                    data = json.load(f)
+                    sessions.append({
+                        "file": file,
+                        "timestamp": data.get("timestamp", ""),
+                        "message_count": len(data.get("messages", [])) - 1  # minus system
+                    })
+            except:
+                pass
+        return sessions
+
+    def load_session(self, filepath):
+        with open(filepath) as f:
+            data = json.load(f)
+        self.messages = data.get("messages", [])
+        self.model = data.get("model", self.model)
+        return len(self.messages) - 1  # number of exchanges (minus system)
+
+    def export_markdown(self, output_file):
+        """Export conversation to markdown file"""
+        with open(output_file, 'w') as f:
+            f.write(f"# Perplexity Chat Export\n\n")
+            f.write(f"**Date:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+            f.write(f"**Model:** {self.model}\n\n")
+            f.write("---\n\n")
+
+            for msg in self.messages:
+                if msg["role"] == "system":
+                    continue
+                elif msg["role"] == "user":
+                    f.write(f"## You\n\n{msg['content']}\n\n")
+                elif msg["role"] == "assistant":
+                    f.write(f"## Perplexity\n\n{msg['content']}\n\n")
+
+
+def query_perplexity(client, prompt, session, stream=False):
+    """Send query to Perplexity API"""
+    session.add_message("user", prompt)
+
+    if stream:
+        print(f"{Colors.BOLD}{Colors.BLUE}Perplexity:{Colors.RESET} ", end="", flush=True)
+        full_response = ""
+
+        response = client.chat.completions.create(
+            model=session.model,
+            messages=session.get_messages(),
+            stream=True
+        )
+
+        for chunk in response:
+            if chunk.choices and chunk.choices[0].delta.content:
+                content = chunk.choices[0].delta.content
+                full_response += content
+                print(content, end="", flush=True)
+
+        print()  # newline after streaming
+        session.add_message("assistant", full_response)
+        return full_response, None
+    else:
+        response = client.chat.completions.create(
+            model=session.model,
+            messages=session.get_messages()
+        )
+
+        answer = response.choices[0].message.content
+        citations = []
+
+        if hasattr(response.choices[0].message, "citations") and response.choices[0].message.citations:
+            citations = response.choices[0].message.citations
+
+        session.add_message("assistant", answer)
+        return answer, citations
+
+
+def interactive_chat(client, session, args):
+    """Interactive chat mode (REPL)"""
+    print_header("Perplexity Interactive Chat")
+    print(f"{Colors.DIM}Type your message and press Enter. Type 'quit' or 'exit' to leave.{Colors.RESET}\n")
+
+    conversation_count = 0
+
+    while True:
+        try:
+            # Get user input
+            user_input = input(f"{Colors.BOLD}{Colors.GREEN}You:{Colors.RESET} ").strip()
+
+            # Handle special commands
+            if user_input.lower() in ('quit', 'exit', 'q'):
+                if conversation_count > 0:
+                    save = input(f"\n{Colors.YELLOW}Save this conversation? (y/n): {Colors.RESET}")
+                    if save.lower() == 'y':
+                        filepath = session.save_session()
+                        print(f"{Colors.GREEN}Saved to: {filepath}{Colors.RESET}")
+                print(f"\n{Colors.BOLD}Goodbye!{Colors.RESET}\n")
+                break
+
+            elif user_input.lower() == 'clear':
+                session.messages = [{"role": "system", "content": session.system_prompt}]
+                conversation_count = 0
+                print(f"{Colors.YELLOW}Conversation cleared.{Colors.RESET}\n")
+                continue
+
+            elif user_input.lower() == 'save':
+                filepath = session.save_session()
+                print(f"{Colors.GREEN}Saved to: {filepath}{Colors.RESET}\n")
+                continue
+
+            elif user_input.lower() == 'export':
+                output_file = input(f"{Colors.YELLOW}Output filename (e.g. chat.md): {Colors.RESET}")
+                if not output_file.endswith('.md'):
+                    output_file += '.md'
+                session.export_markdown(Path(output_file).expanduser())
+                print(f"{Colors.GREEN}Exported to: {output_file}{Colors.RESET}\n")
+                continue
+
+            elif user_input.lower() == 'history':
+                sessions = session.list_sessions()
+                if sessions:
+                    print(f"\n{Colors.BOLD}Saved Conversations:{Colors.RESET}")
+                    for s in sessions:
+                        print(f"  • {s['file'].name} ({s['message_count']} msgs) - {s['timestamp']}")
+                else:
+                    print(f"{Colors.DIM}No saved conversations.{Colors.RESET}")
+                print()
+                continue
+
+            elif user_input.lower() == 'load':
+                sessions = session.list_sessions()
+                if sessions:
+                    print(f"\n{Colors.BOLD}Saved Conversations:{Colors.RESET}")
+                    for i, s in enumerate(sessions, 1):
+                        print(f"  [{i}] {s['file'].name} ({s['message_count']} msgs)")
+                    choice = input(f"\n{Colors.YELLOW}Load which one? (number): {Colors.RESET}")
+                    try:
+                        idx = int(choice) - 1
+                        if 0 <= idx < len(sessions):
+                            count = session.load_session(sessions[idx]['file'])
+                            print(f"{Colors.GREEN}Loaded {count} messages.{Colors.RESET}\n")
+                            continue
+                    except ValueError:
+                        pass
+                else:
+                    print(f"{Colors.DIM}No saved conversations.{Colors.RESET}\n")
+                continue
+
+            elif not user_input:
+                continue
+
+            # Process the query
+            print()  # spacing
+
+            try:
+                answer, citations = query_perplexity(
+                    client, user_input, session, stream=args.stream
+                )
+
+                if args.stream:
+                    # Already printed during streaming
+                    pass
+                else:
+                    print_assistant(answer)
+                    if citations:
+                        print_citations(citations)
+
+                print()  # spacing
+                conversation_count += 1
+
+            except KeyboardInterrupt:
+                print(f"\n\n{Colors.YELLOW}Interrupted. Type 'quit' to exit.{Colors.RESET}\n")
+            except Exception as e:
+                print(f"{Colors.RED}Error: {e}{Colors.RESET}\n")
+
+        except KeyboardInterrupt:
+            print(f"\n\nUse {Colors.YELLOW}'quit'{Colors.RESET} to exit.\n")
+
 
 def main():
     parser = argparse.ArgumentParser(
         description="Query Perplexity API from the terminal",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""Examples:
-  perplexity "What is the capital of France?"
-  perplexity "Latest AI developments"
-  perplexity "Explain quantum computing" --model sonar-pro
-  perplexity "Climate change 2026" --search"""
+        epilog=f"""{Colors.BOLD}Examples:{Colors.RESET}
+  {Colors.GREEN}perplexity{Colors.RESET} "What is the capital of France?"
+  {Colors.GREEN}perplexity{Colors.RESET} "Latest AI developments" --search
+  {Colors.GREEN}perplexity{Colors.RESET} --chat
+  {Colors.GREEN}perplexity{Colors.RESET} --chat --model sonar-medium-online
+  {Colors.GREEN}perplexity{Colors.RESET} "Explain quantum computing" --stream
+  {Colors.GREEN}perplexity{Colors.RESET} --system "You are a coding expert" "Help me debug"
+
+{Colors.BOLD}Interactive Commands:{Colors.RESET}
+  {Colors.CYAN}quit/exit/q{Colors.RESET}  - Exit chat mode
+  {Colors.CYAN}clear{Colors.RESET}        - Clear conversation history
+  {Colors.CYAN}save{Colors.RESET}         - Save current conversation
+  {Colors.CYAN}export{Colors.RESET}       - Export conversation to markdown
+  {Colors.CYAN}history{Colors.RESET}      - List saved conversations
+  {Colors.CYAN}load{Colors.RESET}         - Load a saved conversation
+"""
     )
     parser.add_argument(
         "query",
-        help="Your question or search query"
+        nargs="?",
+        help="Your question or search query (use --chat for interactive mode)"
     )
     parser.add_argument(
         "--model",
@@ -34,70 +324,95 @@ def main():
     parser.add_argument(
         "--api-key",
         default=DEFAULT_API_KEY,
-        help="Perplexity API key (default: uses PERPLEXITY_API_KEY env var or default)"
+        help="Perplexity API key (default: uses PERPLEXITY_API_KEY env var)"
     )
     parser.add_argument(
         "--search",
         action="store_true",
-        help="Use search-focused mode (adds system prompt for research)"
+        help="Use research-focused mode"
     )
     parser.add_argument(
         "--stream",
         action="store_true",
         help="Stream the response as it comes in"
     )
+    parser.add_argument(
+        "--chat",
+        "-c",
+        action="store_true",
+        help="Enter interactive chat mode"
+    )
+    parser.add_argument(
+        "--system",
+        "-s",
+        help="Custom system prompt"
+    )
+    parser.add_argument(
+        "--no-color",
+        action="store_true",
+        help="Disable colored output"
+    )
 
     args = parser.parse_args()
 
-    if not args.query:
-        parser.print_help()
-        sys.exit(1)
+    # Disable colors if requested or not a TTY
+    if args.no_color or not sys.stdout.isatty():
+        for attr in dir(Colors):
+            if attr.isupper():
+                setattr(Colors, attr, "")
 
     try:
         from openai import OpenAI
     except ImportError:
-        print("Error: OpenAI library not installed.")
+        print(f"{Colors.RED}Error: OpenAI library not installed.{Colors.RESET}")
         print("Install it with: pip install openai")
         sys.exit(1)
 
     try:
         client = OpenAI(api_key=args.api_key, base_url="https://api.perplexity.ai")
 
-        system_prompt = "You are a helpful assistant."
-        if args.search:
+        # Determine system prompt
+        if args.system:
+            system_prompt = args.system
+        elif args.search:
             system_prompt = "You are a research assistant. Provide detailed, well-sourced answers with citations."
-
-        messages = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": args.query}
-        ]
-
-        if args.stream:
-            response = client.chat.completions.create(
-                model=args.model,
-                messages=messages,
-                stream=True
-            )
-            for chunk in response:
-                if chunk.choices and chunk.choices[0].delta.content:
-                    print(chunk.choices[0].delta.content, end="", flush=True)
-            print()
         else:
-            response = client.chat.completions.create(
-                model=args.model,
-                messages=messages
-            )
-            print(response.choices[0].message.content)
+            system_prompt = "You are a helpful assistant."
 
-            # Show citations if available
-            if hasattr(response.choices[0].message, "citations") and response.choices[0].message.citations:
-                print("\n--- Citations ---")
-                for i, citation in enumerate(response.choices[0].message.citations, 1):
-                    print(f"[{i}] {citation}")
+        # Create session
+        session = ChatSession(model=args.model, system_prompt=system_prompt)
+
+        # Interactive chat mode
+        if args.chat or not args.query:
+            interactive_chat(client, session, args)
+        else:
+            # Single query mode
+            print_header("Perplexity")
+
+            try:
+                answer, citations = query_perplexity(
+                    client, args.query, session, stream=args.stream
+                )
+
+                if args.stream:
+                    # Already printed during streaming
+                    pass
+                else:
+                    print_assistant(answer)
+                    if citations:
+                        print_citations(citations)
+                print()
+
+            except KeyboardInterrupt:
+                print(f"\n\n{Colors.YELLOW}Interrupted.{Colors.RESET}\n")
+            except Exception as e:
+                print(f"{Colors.RED}Error: {e}{Colors.RESET}\n", file=sys.stderr)
+                sys.exit(1)
 
     except Exception as e:
-        print(f"Error: {e}", file=sys.stderr)
+        print(f"{Colors.RED}Error: {e}{Colors.RESET}\n", file=sys.stderr)
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()
