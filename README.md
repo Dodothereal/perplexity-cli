@@ -1,10 +1,11 @@
 # Perplexity CLI
 
-> A beautiful, feature-rich command-line interface for the Perplexity AI API
+> A beautiful, feature-rich command-line interface for the Perplexity AI API — Cross-platform (Linux, macOS, Windows)
 
 [![Python](https://img.shields.io/badge/python-3.8+-blue.svg)](https://python.org)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![CLI](https://img.shields.io/badge/interface-CLI-purple.svg)](https://github.com/Dodothereal/perplexity-cli)
+[![Platforms](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey.svg)](https://github.com/Dodothereal/perplexity-cli)
 
 ![Demo](assets/demo.png)
 
@@ -22,6 +23,8 @@
 
 ## 🚀 Quick Start
 
+### Linux / macOS
+
 ```bash
 # Install dependencies
 pip install openai python-dotenv
@@ -37,6 +40,42 @@ export PATH="$HOME/.local/bin:$PATH"
 perplexity --chat
 ```
 
+### Windows (PowerShell)
+
+```powershell
+# Install dependencies
+pip install openai python-dotenv
+
+# Copy the script to a folder in your PATH
+# Common locations:
+#   C:\Users\%USERNAME%\AppData\Local\Programs\Python\Python3xx\Scripts\
+#   C:\Users\%USERNAME%\AppData\Local\Microsoft\WindowsApps\
+Copy-Item perplexity $env:USERPROFILE\perplexity.py
+
+# Create an alias (add to your PowerShell profile)
+# Run `notepad $PROFILE` and add:
+#   function perplexity { python $env:USERPROFILE\perplexity.py @args }
+
+# Start chatting!
+perplexity --chat
+```
+
+### Windows (Command Prompt)
+
+```cmd
+REM Install dependencies
+pip install openai python-dotenv
+
+REM Copy to a folder in PATH, e.g.:
+COPY perplexity C:\Users\%USERNAME%\AppData\Local\Programs\Python\Python3xx\Scripts\perplexity.py
+
+REM Create batch wrapper (one-time):
+echo @python "%USERPROFILE%\perplexity.py" %* > C:\Windows\perplexity.bat
+
+REM Start chatting!
+perplexity --chat
+```
+
 ## ⚙️ Setup
 
 ### API Key
@@ -49,11 +88,25 @@ export PERPLEXITY_API_KEY="your-api-key-here"
 ```
 
 #### Option 2: .env File (Recommended)
+
+**Linux / macOS:**
 ```bash
 mkdir -p ~/.perplexity
 cat > ~/.perplexity/.env << 'EOF'
 PERPLEXITY_API_KEY=your-api-key-here
 EOF
+```
+
+**Windows (PowerShell):**
+```powershell
+New-Item -Path "$env:USERPROFILE\.perplexity" -ItemType Directory -Force
+Set-Content -Path "$env:USERPROFILE\.perplexity\.env" -Value "PERPLEXITY_API_KEY=your-api-key-here"
+```
+
+**Windows (Command Prompt):**
+```cmd
+mkdir "%USERPROFILE%\.perplexity"
+echo PERPLEXITY_API_KEY=your-api-key-here > "%USERPROFILE%\.perplexity\.env"
 ```
 
 ## 📖 Usage
@@ -221,11 +274,11 @@ Commands:
 
 ## 📁 File Locations
 
-| File/Folder | Location | Purpose |
-|-------------|----------|---------|
-| `.env` | `~/.perplexity/.env` | API key configuration |
-| Conversations | `~/.cache/perplexity/` | Saved chat history |
-| Script | `~/.local/bin/perplexity` | CLI executable |
+| File/Folder | Linux/macOS | Windows | Purpose |
+|-------------|------------|---------|---------|
+| `.env` | `~/.perplexity/.env` | `%USERPROFILE%\.perplexity\.env` | API key configuration |
+| Conversations | `~/.cache/perplexity/` | `%USERPROFILE%\.cache\perplexity\` | Saved chat history |
+| Script | `~/.local/bin/perplexity` | `%USERPROFILE%\perplexity.py` | CLI executable |
 
 ## 💬 Tips & Tricks
 
@@ -257,7 +310,13 @@ ModuleNotFoundError: No module named 'openai'
 **Solution**: Install dependencies with `pip install openai python-dotenv`
 
 ### Colors Not Showing
-Colors are automatically disabled when piping to a file or using `--no-color`.
+
+**Linux/macOS:** Colors are automatically disabled when piping to a file or using `--no-color`.
+
+**Windows:** If colors aren't showing:
+- Use **Windows Terminal** or **PowerShell 7+** (supports ANSI colors)
+- For older Command Prompt, colors may not work - use `perplexity --no-color`
+- Use PowerShell 5.1+: Install [Windows Terminal](https://aka.ms/terminal) for best experience
 
 ## 📄 License
 

@@ -1,17 +1,34 @@
 #!/usr/bin/env python3
 """
 Perplexity CLI - Query Perplexity API from terminal
-Usage: perplexity "your question here" or perplexity --chat for interactive mode
+Cross-platform CLI tool for Perplexity AI API
+Works on Linux, macOS, and Windows
+
+Usage:
+  perplexity "your question here"           # Single query
+  perplexity --chat                         # Interactive chat mode
+  perplexity --help                         # Show all options
 """
 
 import argparse
 import json
 import os
+import platform
 import re
 import sys
 from datetime import datetime
 from pathlib import Path
 from textwrap import fill
+
+# Windows: Enable ANSI color support for older Windows versions
+if platform.system() == "Windows":
+    try:
+        import ctypes
+        kernel32 = ctypes.windll.kernel32
+        # Enable ANSI color codes for Windows 10+
+        kernel32.SetConsoleMode(kernel32.GetStdHandle(-11), 7)
+    except:
+        pass
 
 # Load .env file if available
 try:
