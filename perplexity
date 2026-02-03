@@ -11,8 +11,17 @@ import re
 import sys
 from datetime import datetime
 from pathlib import Path
+from textwrap import fill
 
-# Default API key (use PERPLEXITY_API_KEY environment variable)
+# Load .env file if available
+try:
+    from dotenv import load_dotenv
+    env_path = Path.home() / ".perplexity" / ".env"
+    load_dotenv(env_path)
+except ImportError:
+    pass
+
+# Default API key (your personal key)
 DEFAULT_API_KEY = os.environ.get("PERPLEXITY_API_KEY")
 
 # ANSI color codes
@@ -32,6 +41,9 @@ class Colors:
     CYAN = "\033[36m"
     WHITE = "\033[37m"
     BRIGHT_BLUE = "\033[94m"
+    BRIGHT_GREEN = "\033[92m"
+    BRIGHT_YELLOW = "\033[93m"
+    BRIGHT_MAGENTA = "\033[95m"
 
     # Background colors
     BG_BLACK = "\033[40m"
@@ -41,42 +53,173 @@ class Colors:
     BG_BLUE = "\033[44m"
     BG_MAGENTA = "\033[45m"
     BG_CYAN = "\033[46m"
-    BG_WHITE = "\033[47m"
+    BG_BRIGHT_BLUE = "\033[104m"
+
+
+def clear_screen():
+    """Clear terminal screen"""
+    os.system('clear' if os.name != 'nt' else 'cls')
+
+
+def print_box(text, width=60, padding=1):
+    """Print text in a styled box"""
+    border = Colors.CYAN + "═" * width + Colors.RESET
+    space = " " * (width - 2)
+
+    print(f"\n{Colors.CYAN}╔{border[1:-1]}╗{Colors.RESET}")
+
+    # Top padding
+    for _ in range(padding):
+        print(f"{Colors.CYAN}║{space}║{Colors.RESET}")
+
+    # Content
+    lines = text.split('\n')
+    for line in lines:
+        line = line.strip()
+        if line:
+            text_color = Colors.BOLD + Colors.CYAN
+            content = " " + line + " "
+            content = content.ljust(width - 2)
+            print(f"{Colors.CYAN}║{text_color}{content}{Colors.CYAN}║{Colors.RESET}")
+
+    # Bottom padding
+    for _ in range(padding):
+        print(f"{Colors.CYAN}║{space}║{Colors.RESET}")
+
+    print(f"{Colors.CYAN}╚{border[1:-1]}╝{Colors.RESET}\n")
+
+
+def print_welcome(model="sonar-pro"):
+    """Print welcome screen"""
+    clear_screen()
+    print(f"""
+{Colors.BOLD}{Colors.CYAN}
+   __  __                    _
+  / / / /___  ____ ___  ____/ /___ _
+ / /_/ / __ \\/ __ `__ "/ __  / __ `/
+/ __  / /_/ / / / / / / /_/ / /_/ /
+/_/ /_/\\____/_/ /_/ /_/\\__,_/\\__,_/
+
+{Colors.RESET}""")
+
+    # Status bar
+    print(f"{Colors.BG_BRIGHT_BLUE}{Colors.WHITE}  Model: {Colors.BOLD}{model}{Colors.RESET}", end="")
+
+    # Calculate padding to push date to right
+    date_str = f"  {datetime.now().strftime('%Y-%m-%d %I:%M %p')}  "
+    total_width = 70
+    current_width = len(f"  Model: {model}")
+    padding = total_width - current_width - len(date_str)
+
+    print(" " * padding + f"{date_str}{Colors.RESET}\n")
+
+    # Help box
+    help_text = f"""{Colors.GREEN}Commands:{Colors.RESET}
+  {Colors.YELLOW}/help{Colors.RESET}       Show this help
+  {Colors.YELLOW}/clear{Colors.RESET}      Clear conversation history
+  {Colors.YELLOW}/save{Colors.RESET}       Save current conversation
+  {Colors.YELLOW}/export{Colors.RESET}     Export to Markdown
+  {Colors.YELLOW}/history{Colors.RESET}    List saved conversations
+  {Colors.YELLOW}/load{Colors.RESET}       Load a saved conversation
+  {Colors.YELLOW}/status{Colors.RESET}     Show current session info
+  {Colors.YELLOW}/quit{Colors.RESET}       Exit chat mode
+
+{Colors.DIM}Type your message and press Enter to chat.{Colors.RESET}
+"""
+    print(help_text)
+
+
+def print_status(client, session):
+    """Print current session status"""
+    msgs = len(session.messages) - 1  # Minus system prompt
+    print(f"\n{Colors.BOLD}{Colors.CYAN}Session Status{Colors.RESET}")
+    print(f"  Model:  {Colors.YELLOW}{session.model}{Colors.RESET}")
+    print(f"  Messages:   {Colors.YELLOW}{msgs}{Colors.RESET}")
+    print(f"  History dir: {Colors.DIM}{session.history_dir}{Colors.RESET}")
+    print()
+
+
+def print_help():
+    """Print help information"""
+    print_box("""
+Interactive Commands
+
+/help       - Show this help
+/clear      - Clear conversation history
+/save       - Save current conversation
+/export     - Export conversation to Markdown
+/history    - List all saved conversations
+/load       - Load a saved conversation
+/status     - Show current session info
+/quit       - Exit chat mode
+
+Keyboard Shortcuts
+Ctrl+C      - Interrupt current response
+Ctrl+D      - Exit chat mode
+    """)
 
 
 def print_header(text):
     """Print a styled header"""
-    print(f"\n{Colors.BOLD}{Colors.CYAN}{'=' * 60}{Colors.RESET}")
-    print(f"{Colors.BOLD}{Colors.CYAN}{text.center(60)}{Colors.RESET}")
-    print(f"{Colors.BOLD}{Colors.CYAN}{'=' * 60}{Colors.RESET}\n")
+    print(f"\n{Colors.BOLD}{Colors.CYAN}{'─' * 70}{Colors.RESET}")
+    print(f"{Colors.BOLD}{Colors.CYAN}  {text}{Colors.RESET}")
+    print(f"{Colors.BOLD}{Colors.CYAN}{'─' * 70}{Colors.RESET}\n")
+
+
+def format_response(text):
+    """Format response with markdown-like styling"""
+    # Bold text
+    text = re.sub(r'\*\*(.*?)\*\*', f'{Colors.BOLD}\\1{Colors.RESET}', text)
+    # Italic text
+    text = re.sub(r'\*(.*?)\*', f'{Colors.UNDERLINE}\\1{Colors.RESET}', text)
+    # Code blocks
+    text = re.sub(r'```(\w*)\n(.*?)```', f'\n{Colors.BG_BLACK}{Colors.GREEN}\\2{Colors.RESET}\n', text, flags=re.DOTALL)
+    # Inline code
+    text = re.sub(r'`(.*?)`', f'{Colors.BG_BLACK}{Colors.GREEN}\\1{Colors.RESET}', text)
+    # Headers
+    text = re.sub(r'^### (.*?)$', f'\n{Colors.BOLD}{Colors.BRIGHT_BLUE}\\1{Colors.RESET}\n', text, flags=re.MULTILINE)
+    text = re.sub(r'^## (.*?)$', f'\n{Colors.BOLD}{Colors.BRIGHT_MAGENTA}\\1{Colors.RESET}\n', text, flags=re.MULTILINE)
+    text = re.sub(r'^# (.*?)$', f'\n{Colors.BOLD}{Colors.CYAN}═ {Colors.RESET}{Colors.BOLD}{Colors.CYAN}\\1{Colors.RESET}\n', text, flags=re.MULTILINE)
+    # Lists
+    text = re.sub(r'^- (.*?)$', f'{Colors.YELLOW}•{Colors.RESET} \\1', text, flags=re.MULTILINE)
+    text = re.sub(r'^(\d+)\. (.*?)$', f'{Colors.YELLOW}\\1.{Colors.RESET} \\2', text, flags=re.MULTILINE)
+    # Links
+    text = re.sub(r'\[([^\]]+)\]\(([^)]+)\)', f'{Colors.UNDERLINE}{Colors.BLUE}\\1{Colors.RESET}', text)
+
+    return text
 
 
 def print_user(text):
     """Print user message with styling"""
-    print(f"{Colors.BOLD}{Colors.GREEN}You:{Colors.RESET} {text}")
+    print(f"\n{Colors.BOLD}{Colors.BRIGHT_GREEN}┌─ You ───────────────────────────────────────────────{Colors.RESET}")
+    print(f"{Colors.BOLD}{Colors.BRIGHT_GREEN}│{Colors.RESET} {text}")
+    print(f"{Colors.BOLD}{Colors.BRIGHT_GREEN}└─────────────────────────────────────────────────────{Colors.RESET}")
 
 
-def print_assistant(text):
+def print_assistant(text, streamed=False):
     """Print assistant message with styling"""
-    print(f"{Colors.BOLD}{Colors.BLUE}Perplexity:{Colors.RESET}")
-    for line in text.split('\n'):
-        if line.strip().startswith('[') and '](' in line:
-            # Handle markdown links
-            print(f"  {Colors.DIM}{line}{Colors.RESET}")
-        else:
-            print(f"  {line}")
+    formatted = format_response(text) if not streamed else text
+
+    print(f"\n{Colors.BOLD}{Colors.BRIGHT_BLUE}┌─ Perplexity ───────────────────────────────────────{Colors.RESET}")
+    print(f"{Colors.BOLD}{Colors.BRIGHT_BLUE}│{Colors.RESET}")
+
+    for line in formatted.split('\n'):
+        print(f"{Colors.BOLD}{Colors.BRIGHT_BLUE}│{Colors.RESET} {line}")
+
+    print(f"{Colors.BOLD}{Colors.BRIGHT_BLUE}└─────────────────────────────────────────────────────{Colors.RESET}")
 
 
 def print_citations(citations):
     """Print citations with styling"""
     if citations:
-        print(f"\n{Colors.BOLD}{Colors.YELLOW}Sources:{Colors.RESET}")
+        print(f"\n{Colors.BOLD}{Colors.YELLOW}📚 Sources{Colors.RESET}")
         for i, citation in enumerate(citations, 1):
-            print(f"  [{i}] {Colors.DIM}{citation}{Colors.RESET}")
+            print(f"  {Colors.DIM}[{i}] {citation[:80]}{'...' if len(citation) > 80 else ''}{Colors.RESET}")
 
 
-def format_markdown(text):
-    return text
+def print_streaming_indicator():
+    """Print streaming indicator"""
+    return f"{Colors.DIM}⏳ {Colors.RESET}"
 
 
 class ChatSession:
@@ -88,6 +231,7 @@ class ChatSession:
         self.messages = [{"role": "system", "content": self.system_prompt}]
         self.history_dir = Path.home() / ".cache" / "perplexity"
         self.history_dir.mkdir(parents=True, exist_ok=True)
+        self.created_at = datetime.now()
 
     def add_message(self, role, content):
         self.messages.append({"role": role, "content": content})
@@ -103,6 +247,7 @@ class ChatSession:
         with open(filepath, 'w') as f:
             json.dump({
                 "timestamp": datetime.now().isoformat(),
+                "created_at": self.created_at.isoformat(),
                 "model": self.model,
                 "messages": self.messages
             }, f, indent=2)
@@ -118,7 +263,7 @@ class ChatSession:
                     sessions.append({
                         "file": file,
                         "timestamp": data.get("timestamp", ""),
-                        "message_count": len(data.get("messages", [])) - 1  # minus system
+                        "message_count": len(data.get("messages", [])) - 1
                     })
             except:
                 pass
@@ -129,7 +274,7 @@ class ChatSession:
             data = json.load(f)
         self.messages = data.get("messages", [])
         self.model = data.get("model", self.model)
-        return len(self.messages) - 1  # number of exchanges (minus system)
+        return len(self.messages) - 1
 
     def export_markdown(self, output_file):
         """Export conversation to markdown file"""
@@ -153,8 +298,10 @@ def query_perplexity(client, prompt, session, stream=False):
     session.add_message("user", prompt)
 
     if stream:
-        print(f"{Colors.BOLD}{Colors.BLUE}Perplexity:{Colors.RESET} ", end="", flush=True)
         full_response = ""
+
+        print(f"\n{Colors.BOLD}{Colors.BRIGHT_BLUE}┌─ Perplexity ───────────────────────────────────────{Colors.RESET}")
+        print(f"{Colors.BOLD}{Colors.BRIGHT_BLUE}│{Colors.RESET} ", end="", flush=True)
 
         response = client.chat.completions.create(
             model=session.model,
@@ -162,13 +309,21 @@ def query_perplexity(client, prompt, session, stream=False):
             stream=True
         )
 
+        col = 0
         for chunk in response:
             if chunk.choices and chunk.choices[0].delta.content:
                 content = chunk.choices[0].delta.content
                 full_response += content
-                print(content, end="", flush=True)
 
-        print()  # newline after streaming
+                # Simple word wrapping for streaming
+                for char in content:
+                    print(char, end="", flush=True)
+                    col += 1
+                    if col >= 68:
+                        print(f"\n{Colors.BOLD}{Colors.BRIGHT_BLUE}│{Colors.RESET} ", end="", flush=True)
+                        col = 0
+
+        print(f"{Colors.BOLD}{Colors.BRIGHT_BLUE}\n└─────────────────────────────────────────────────────{Colors.RESET}")
         session.add_message("assistant", full_response)
         return full_response, None
     else:
@@ -189,9 +344,7 @@ def query_perplexity(client, prompt, session, stream=False):
 
 def interactive_chat(client, session, args):
     """Interactive chat mode (REPL)"""
-    print_header("Perplexity Interactive Chat")
-    print(f"{Colors.DIM}Type your message and press Enter. Type 'quit' or 'exit' to leave.{Colors.RESET}\n")
-
+    print_welcome(args.model)
     conversation_count = 0
 
     while True:
@@ -199,80 +352,97 @@ def interactive_chat(client, session, args):
             # Get user input
             user_input = input(f"{Colors.BOLD}{Colors.GREEN}You:{Colors.RESET} ").strip()
 
-            # Handle special commands
-            if user_input.lower() in ('quit', 'exit', 'q'):
-                if conversation_count > 0:
-                    save = input(f"\n{Colors.YELLOW}Save this conversation? (y/n): {Colors.RESET}")
-                    if save.lower() == 'y':
-                        filepath = session.save_session()
-                        print(f"{Colors.GREEN}Saved to: {filepath}{Colors.RESET}")
-                print(f"\n{Colors.BOLD}Goodbye!{Colors.RESET}\n")
-                break
+            # Handle slash commands
+            if user_input.startswith('/'):
+                cmd = user_input.lower()
 
-            elif user_input.lower() == 'clear':
-                session.messages = [{"role": "system", "content": session.system_prompt}]
-                conversation_count = 0
-                print(f"{Colors.YELLOW}Conversation cleared.{Colors.RESET}\n")
-                continue
+                if cmd in ('/quit', '/exit', '/q'):
+                    if conversation_count > 0:
+                        save = input(f"\n{Colors.YELLOW}Save this conversation? (y/n): {Colors.RESET}")
+                        if save.lower() == 'y':
+                            filepath = session.save_session()
+                            print(f"{Colors.GREEN}✓ Saved to: {filepath}{Colors.RESET}")
+                    print(f"\n{Colors.BOLD}Goodbye! 👋{Colors.RESET}\n")
+                    break
 
-            elif user_input.lower() == 'save':
-                filepath = session.save_session()
-                print(f"{Colors.GREEN}Saved to: {filepath}{Colors.RESET}\n")
-                continue
+                elif cmd == '/clear':
+                    session.messages = [{"role": "system", "content": session.system_prompt}]
+                    conversation_count = 0
+                    print(f"{Colors.YELLOW}✓ Conversation cleared.{Colors.RESET}\n")
+                    continue
 
-            elif user_input.lower() == 'export':
-                output_file = input(f"{Colors.YELLOW}Output filename (e.g. chat.md): {Colors.RESET}")
-                if not output_file.endswith('.md'):
-                    output_file += '.md'
-                session.export_markdown(Path(output_file).expanduser())
-                print(f"{Colors.GREEN}Exported to: {output_file}{Colors.RESET}\n")
-                continue
+                elif cmd == '/save':
+                    filepath = session.save_session()
+                    print(f"{Colors.GREEN}✓ Saved to: {filepath}{Colors.RESET}\n")
+                    continue
 
-            elif user_input.lower() == 'history':
-                sessions = session.list_sessions()
-                if sessions:
-                    print(f"\n{Colors.BOLD}Saved Conversations:{Colors.RESET}")
-                    for s in sessions:
-                        print(f"  • {s['file'].name} ({s['message_count']} msgs) - {s['timestamp']}")
+                elif cmd == '/export':
+                    output_file = input(f"{Colors.YELLOW}Output filename (e.g. chat.md): {Colors.RESET}")
+                    if not output_file.endswith('.md'):
+                        output_file += '.md'
+                    output_path = Path(output_file).expanduser()
+                    session.export_markdown(output_path)
+                    print(f"{Colors.GREEN}✓ Exported to: {output_path}{Colors.RESET}\n")
+                    continue
+
+                elif cmd == '/history':
+                    sessions = session.list_sessions()
+                    if sessions:
+                        print(f"\n{Colors.BOLD}📂 Saved Conversations{Colors.RESET}")
+                        for s in sessions:
+                            print(f"  • {Colors.CYAN}{s['file'].name}{Colors.RESET} ({s['message_count']} msgs) - {s['timestamp']}")
+                    else:
+                        print(f"{Colors.DIM}No saved conversations.{Colors.RESET}")
+                    print()
+                    continue
+
+                elif cmd == '/load':
+                    sessions = session.list_sessions()
+                    if sessions:
+                        print(f"\n{Colors.BOLD}📂 Saved Conversations{Colors.RESET}")
+                        for i, s in enumerate(sessions, 1):
+                            print(f"  [{i}] {Colors.CYAN}{s['file'].name}{Colors.RESET} ({s['message_count']} msgs)")
+                        choice = input(f"\n{Colors.YELLOW}Load which one? (number or 'cancel'): {Colors.RESET}")
+                        if choice.lower() != 'cancel':
+                            try:
+                                idx = int(choice) - 1
+                                if 0 <= idx < len(sessions):
+                                    count = session.load_session(sessions[idx]['file'])
+                                    print(f"{Colors.GREEN}✓ Loaded {count} messages.{Colors.RESET}\n")
+                                    continue
+                            except ValueError:
+                                pass
+                    else:
+                        print(f"{Colors.DIM}No saved conversations.{Colors.RESET}\n")
+                    continue
+
+                elif cmd == '/status':
+                    print_status(client, session)
+                    continue
+
+                elif cmd == '/help':
+                    print_help()
+                    continue
+
+                elif cmd in ('/?', '--help'):
+                    print_help()
+                    continue
+
                 else:
-                    print(f"{Colors.DIM}No saved conversations.{Colors.RESET}")
-                print()
-                continue
-
-            elif user_input.lower() == 'load':
-                sessions = session.list_sessions()
-                if sessions:
-                    print(f"\n{Colors.BOLD}Saved Conversations:{Colors.RESET}")
-                    for i, s in enumerate(sessions, 1):
-                        print(f"  [{i}] {s['file'].name} ({s['message_count']} msgs)")
-                    choice = input(f"\n{Colors.YELLOW}Load which one? (number): {Colors.RESET}")
-                    try:
-                        idx = int(choice) - 1
-                        if 0 <= idx < len(sessions):
-                            count = session.load_session(sessions[idx]['file'])
-                            print(f"{Colors.GREEN}Loaded {count} messages.{Colors.RESET}\n")
-                            continue
-                    except ValueError:
-                        pass
-                else:
-                    print(f"{Colors.DIM}No saved conversations.{Colors.RESET}\n")
-                continue
+                    print(f"{Colors.RED}Unknown command: {user_input}{Colors.RESET}")
+                    print(f"{Colors.DIM}Type '/help' for available commands.{Colors.RESET}\n")
+                    continue
 
             elif not user_input:
                 continue
 
             # Process the query
-            print()  # spacing
-
             try:
                 answer, citations = query_perplexity(
                     client, user_input, session, stream=args.stream
                 )
 
-                if args.stream:
-                    # Already printed during streaming
-                    pass
-                else:
+                if not args.stream:
                     print_assistant(answer)
                     if citations:
                         print_citations(citations)
@@ -281,12 +451,15 @@ def interactive_chat(client, session, args):
                 conversation_count += 1
 
             except KeyboardInterrupt:
-                print(f"\n\n{Colors.YELLOW}Interrupted. Type 'quit' to exit.{Colors.RESET}\n")
+                print(f"\n\n{Colors.YELLOW}⚠ Interrupted. Type '/quit' to exit.{Colors.RESET}\n")
             except Exception as e:
-                print(f"{Colors.RED}Error: {e}{Colors.RESET}\n")
+                print(f"\n{Colors.RED}✗ Error: {e}{Colors.RESET}\n")
 
         except KeyboardInterrupt:
-            print(f"\n\nUse {Colors.YELLOW}'quit'{Colors.RESET} to exit.\n")
+            print(f"\n\n{Colors.YELLOW}⚠ Use '/quit' to exit.{Colors.RESET}\n")
+        except EOFError:
+            print(f"\n\n{Colors.BOLD}Goodbye! 👋{Colors.RESET}\n")
+            break
 
 
 def main():
@@ -297,17 +470,8 @@ def main():
   {Colors.GREEN}perplexity{Colors.RESET} "What is the capital of France?"
   {Colors.GREEN}perplexity{Colors.RESET} "Latest AI developments" --search
   {Colors.GREEN}perplexity{Colors.RESET} --chat
-  {Colors.GREEN}perplexity{Colors.RESET} --chat --model sonar-medium-online
-  {Colors.GREEN}perplexity{Colors.RESET} "Explain quantum computing" --stream
-  {Colors.GREEN}perplexity{Colors.RESET} --system "You are a coding expert" "Help me debug"
-
-{Colors.BOLD}Interactive Commands:{Colors.RESET}
-  {Colors.CYAN}quit/exit/q{Colors.RESET}  - Exit chat mode
-  {Colors.CYAN}clear{Colors.RESET}        - Clear conversation history
-  {Colors.CYAN}save{Colors.RESET}         - Save current conversation
-  {Colors.CYAN}export{Colors.RESET}       - Export conversation to markdown
-  {Colors.CYAN}history{Colors.RESET}      - List saved conversations
-  {Colors.CYAN}load{Colors.RESET}         - Load a saved conversation
+  {Colors.GREEN}perplexity{Colors.RESET} --chat --stream
+  {Colors.GREEN}perplexity{Colors.RESET} "Explain quantum computing" --system "You are a physics teacher"
 """
     )
     parser.add_argument(
@@ -394,10 +558,7 @@ def main():
                     client, args.query, session, stream=args.stream
                 )
 
-                if args.stream:
-                    # Already printed during streaming
-                    pass
-                else:
+                if not args.stream:
                     print_assistant(answer)
                     if citations:
                         print_citations(citations)
