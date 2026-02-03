@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Perplexity CLI - Query Perplexity API from terminal
+Perplexity CLI - A beautiful CLI for Perplexity AI API
 Cross-platform CLI tool for Perplexity AI API
 Works on Linux, macOS, and Windows
 
@@ -16,6 +16,8 @@ import os
 import platform
 import re
 import sys
+import tty
+import termios
 from datetime import datetime
 from pathlib import Path
 from textwrap import fill
@@ -78,6 +80,109 @@ def clear_screen():
     os.system('clear' if os.name != 'nt' else 'cls')
 
 
+def get_key():
+    """Get a single keypress - cross-platform"""
+    if platform.system() == "Windows":
+        import msvcrt
+        key = msvcrt.getch()
+        if key == b'\xe0':  # Special key prefix
+            key = msvcrt.getch()
+            if key == b'H':
+                return 'UP'
+            elif key == b'P':
+                return 'DOWN'
+            elif key == b'K':
+                return 'LEFT'
+            elif key == b'M':
+                return 'RIGHT'
+        elif key == b'\r':
+            return 'ENTER'
+        elif key == b'\x03':
+            return 'CTRL_C'
+        elif key == b'\x1b':
+            return 'ESC'
+        return key.decode('utf-8', errors='ignore')
+    else:
+        fd = sys.stdin.fileno()
+        old_settings = termios.tcgetattr(fd)
+        try:
+            tty.setraw(sys.stdin.fileno())
+            ch = sys.stdin.read(1)
+            if ch == '\x1b':
+                # Arrow key sequence
+                ch2 = sys.stdin.read(1)
+                if ch2 == '[':
+                    ch3 = sys.stdin.read(1)
+                    if ch3 == 'A':
+                        return 'UP'
+                    elif ch3 == 'B':
+                        return 'DOWN'
+                    elif ch3 == 'C':
+                        return 'RIGHT'
+                    elif ch3 == 'D':
+                        return 'LEFT'
+            elif ch == '\r' or ch == '\n':
+                return 'ENTER'
+            elif ch == '\x03':
+                return 'CTRL_C'
+            elif ch == '\x1b':
+                return 'ESC'
+            return ch
+        finally:
+            termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+
+
+def show_menu(title, options, default=0):
+    """Show an interactive menu with arrow navigation
+
+    Returns: selected index or None if cancelled
+    """
+    selected = default
+
+    while True:
+        clear_screen()
+
+        # Title
+        print(f"\n{Colors.BOLD}{Colors.CYAN}╔{'═' * 68}╗{Colors.RESET}")
+        print(f"{Colors.BOLD}{Colors.CYAN}║  {title.center(64)}  ║{Colors.RESET}")
+        print(f"{Colors.BOLD}{Colors.CYAN}╚{'═' * 68}╝{Colors.RESET}\n")
+
+        # Options
+        for i, option in enumerate(options):
+            prefix = " "
+            suffix = ""
+
+            if i == selected:
+                prefix = f"{Colors.BG_BRIGHT_BLUE}{Colors.WHITE}► {Colors.RESET}"
+                suffix = " " + Colors.RESET
+            else:
+                prefix = "  "
+
+            print(f"{prefix}{option}{suffix}")
+
+        print(f"\n  {Colors.DIM}↑↓ Navigate • ENTER Select • ESC Cancel{Colors.RESET}")
+
+        # Get key
+        key = get_key()
+
+        if key == 'UP':
+            selected = (selected - 1) % len(options)
+        elif key == 'DOWN':
+            selected = (selected + 1) % len(options)
+        elif key == 'ENTER':
+            return selected
+        elif key == 'ESC' or key == 'CTRL_C':
+            return None
+
+
+def print_header(text, show_cli_branding=True):
+    """Print a styled header with Perplexity CLI branding"""
+    branding = f" {Colors.DIM}|{Colors.RESET} Perplexity CLI" if show_cli_branding else ""
+    print(f"\n{Colors.BOLD}{Colors.CYAN}{'─' * 70}{Colors.RESET}")
+    print(f"{Colors.BOLD}{Colors.CYAN}  {text}{branding}{Colors.RESET}")
+    print(f"{Colors.BOLD}{Colors.CYAN}{'─' * 70}{Colors.RESET}\n")
+
+
 def print_box(text, width=60, padding=1):
     """Print text in a styled box"""
     border = Colors.CYAN + "═" * width + Colors.RESET
@@ -94,10 +199,9 @@ def print_box(text, width=60, padding=1):
     for line in lines:
         line = line.strip()
         if line:
-            text_color = Colors.BOLD + Colors.CYAN
             content = " " + line + " "
             content = content.ljust(width - 2)
-            print(f"{Colors.CYAN}║{text_color}{content}{Colors.CYAN}║{Colors.RESET}")
+            print(f"{Colors.CYAN}║{Colors.BOLD}{Colors.CYAN}{content}{Colors.CYAN}║{Colors.RESET}")
 
     # Bottom padding
     for _ in range(padding):
@@ -107,80 +211,174 @@ def print_box(text, width=60, padding=1):
 
 
 def print_welcome(model="sonar-pro"):
-    """Print welcome screen"""
+    """Print welcome screen with Perplexity CLI branding"""
     clear_screen()
+
+    # Logo
     print(f"""
 {Colors.BOLD}{Colors.CYAN}
-   __  __                    _
-  / / / /___  ____ ___  ____/ /___ _
- / /_/ / __ \\/ __ `__ "/ __  / __ `/
-/ __  / /_/ / / / / / / /_/ / /_/ /
-/_/ /_/\\____/_/ /_/ /_/\\__,_/\\__,_/
-
+   ██████╗ ███████╗██████╗ ██████╗ ███████╗
+  ██╔════╝ ██╔════╝██╔══██╗██╔══██╗██╔════╝
+  ██║  ███╗█████╗  ██████╔╝██████╔╝███████╗
+  ██║   ██║██╔══╝  ██╔══██╗██╔══██╗╚════██║
+  ╚██████╔╝███████╗██║  ██║██║  ██║███████║
+   ╚═════╝ ╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝╚══════╝
+                  {Colors.BRIGHT_BLUE}CLI{Colors.YELLOW} v2.0{Colors.RESET}
 {Colors.RESET}""")
 
     # Status bar
-    print(f"{Colors.BG_BRIGHT_BLUE}{Colors.WHITE}  Model: {Colors.BOLD}{model}{Colors.RESET}", end="")
+    model_display = model.replace('-', ' ').upper()
+    print(f"{Colors.BG_BRIGHT_BLUE}{Colors.WHITE}  ● Model: {Colors.BOLD}{model_display}{Colors.RESET}", end="")
 
     # Calculate padding to push date to right
     date_str = f"  {datetime.now().strftime('%Y-%m-%d %I:%M %p')}  "
     total_width = 70
-    current_width = len(f"  Model: {model}")
+    current_width = len(f"  ● Model: {model_display}")
     padding = total_width - current_width - len(date_str)
 
     print(" " * padding + f"{date_str}{Colors.RESET}\n")
 
+    # Quick help
+    print(f"{Colors.BG_BLACK}{Colors.GREEN}  MENU OPTIONS:{Colors.RESET}")
+    print(f"{Colors.BG_BLACK}{Colors.WHITE}  Type '{Colors.YELLOW}/menu{Colors.WHITE}' to open settings{Colors.RESET}")
+    print(f"{Colors.BG_BLACK}{Colors.WHITE}  Type '{Colors.YELLOW}/help{Colors.WHITE}' for all commands{Colors.RESET}{Colors.RESET}\n")
+
     # Help box
-    help_text = f"""{Colors.GREEN}Commands:{Colors.RESET}
-  {Colors.YELLOW}/help{Colors.RESET}       Show this help
-  {Colors.YELLOW}/clear{Colors.RESET}      Clear conversation history
-  {Colors.YELLOW}/save{Colors.RESET}       Save current conversation
-  {Colors.YELLOW}/export{Colors.RESET}     Export to Markdown
-  {Colors.YELLOW}/history{Colors.RESET}    List saved conversations
-  {Colors.YELLOW}/load{Colors.RESET}       Load a saved conversation
-  {Colors.YELLOW}/status{Colors.RESET}     Show current session info
-  {Colors.YELLOW}/quit{Colors.RESET}       Exit chat mode
+    help_text = f"""{Colors.GREEN}Quick Commands:{Colors.RESET}
+  {Colors.YELLOW}/menu{Colors.RESET}        Open settings menu (arrow navigation)
+  {Colors.YELLOW}/model{Colors.RESET}       Switch AI model
+  {Colors.YELLOW}/clear{Colors.RESET}       Clear conversation
+  {Colors.YELLOW}/save{Colors.RESET}        Save conversation
+  {Colors.YELLOW}/export{Colors.RESET}      Export to Markdown
+  {Colors.YELLOW}/history{Colors.RESET}     List saved chats
+  {Colors.YELLOW}/load{Colors.RESET}        Load saved chat
+  {Colors.YELLOW}/quit{Colors.RESET}        Exit
 
 {Colors.DIM}Type your message and press Enter to chat.{Colors.RESET}
 """
     print(help_text)
 
 
+def show_settings_menu():
+    """Show interactive settings menu"""
+    options = [
+        "🤖 Change Model",
+        "🔧 API Settings",
+        "💾 Conversation History",
+        "📤 Export Conversation",
+        "ℹ️  About",
+        "← Back to Chat"
+    ]
+
+    choice = show_menu("PERPLEXITY CLI • SETTINGS", options, default=0)
+
+    settings_map = {
+        0: 'model',
+        1: 'api',
+        2: 'history',
+        3: 'export',
+        4: 'about',
+        5: 'back'
+    }
+
+    return settings_map.get(choice, 'back')
+
+
+def show_model_menu(current_model):
+    """Show model selection menu"""
+    models = [
+        ("Sonar Pro (Best)", "sonar-pro", "Recommended for complex queries"),
+        ("Sonar Medium", "sonar-medium-online", "Faster responses"),
+        ("Sonar Small", "sonar-small-online", "Fastest responses")
+    ]
+
+    options = []
+    for name, model_id, desc in models:
+        marker = f"{Colors.GREEN}●{Colors.RESET}" if model_id == current_model else "○"
+        options.append(f"{marker} {name:20} {Colors.DIM}—{desc}")
+
+    options.append("← Cancel")
+
+    choice = show_menu("PERPLEXITY CLI • SELECT MODEL", options)
+
+    if choice is not None and choice < len(models):
+        return models[choice][1]
+    return None
+
+
+def show_about():
+    """Show about information"""
+    clear_screen()
+
+    print(f"""
+{Colors.BOLD}{Colors.CYAN}
+╔════════════════════════════════════════════════════════════════════════╗
+║                        {Colors.BRIGHT_CYAN}PERPLEXITY CLI{Colors.CYAN}                          ║
+╠════════════════════════════════════════════════════════════════════════╣
+║  {Colors.WHITE}A beautiful CLI for the Perplexity AI API{Colors.CYAN}                        ║
+╚════════════════════════════════════════════════════════════════════════╝
+{Colors.RESET}
+
+{Colors.BOLD}{Colors.GREEN}Features:{Colors.RESET}
+  • Interactive chat with conversation history
+  • Real-time streaming responses
+  • Markdown formatting with syntax highlighting
+  • Save/load/export conversations
+  • Research mode with citations
+  • Custom AI personas
+  • Beautiful terminal UI with arrow navigation
+
+{Colors.BOLD}{Colors.GREEN}Version:{Colors.RESET} 2.0
+{Colors.BOLD}{Colors.GREEN}Repository:{Colors.RESET} https://github.com/Dodothereal/perplexity-cli
+{Colors.BOLD}{Colors.GREEN}Author:{Colors.RESET} Dodothereal
+
+{Colors.BOLD}{Colors.YELLOW}Press ENTER to continue...{Colors.RESET}
+""")
+
+    # Wait for ENTER
+    if platform.system() == "Windows":
+        import msvcrt
+        while True:
+            key = msvcrt.getch()
+            if key == b'\r':
+                break
+    else:
+        input()
+
+
 def print_status(client, session):
     """Print current session status"""
     msgs = len(session.messages) - 1  # Minus system prompt
-    print(f"\n{Colors.BOLD}{Colors.CYAN}Session Status{Colors.RESET}")
-    print(f"  Model:  {Colors.YELLOW}{session.model}{Colors.RESET}")
-    print(f"  Messages:   {Colors.YELLOW}{msgs}{Colors.RESET}")
-    print(f"  History dir: {Colors.DIM}{session.history_dir}{Colors.RESET}")
-    print()
+    print(f"\n{Colors.BOLD}{Colors.CYAN}┌─ Perplexity CLI • Session ─────────────────────────{Colors.RESET}")
+    print(f"{Colors.BOLD}{Colors.CYAN}│{Colors.RESET}")
+    print(f"{Colors.BOLD}{Colors.CYAN}│{Colors.RESET}  Model:    {Colors.YELLOW}{session.model.upper()}{Colors.RESET}")
+    print(f"{Colors.BOLD}{Colors.CYAN}│{Colors.RESET}  Messages: {Colors.YELLOW}{msgs}{Colors.RESET}")
+    print(f"{Colors.BOLD}{Colors.CYAN}│{Colors.RESET}  History:  {Colors.DIM}{session.history_dir}{Colors.RESET}")
+    print(f"{Colors.BOLD}{Colors.CYAN}└───────────────────────────────────────────────────────{Colors.RESET}\n")
 
 
 def print_help():
     """Print help information"""
     print_box("""
-Interactive Commands
+Interactive Commands (slash commands)
 
-/help       - Show this help
-/clear      - Clear conversation history
-/save       - Save current conversation
-/export     - Export conversation to Markdown
-/history    - List all saved conversations
-/load       - Load a saved conversation
-/status     - Show current session info
-/quit       - Exit chat mode
+/menu         Open settings menu with arrow navigation
+/model        Switch AI model (interactive)
+/clear        Clear conversation history
+/save         Save current conversation
+/export       Export conversation to Markdown
+/history      List all saved conversations
+/load         Load a saved conversation
+/status       Show current session info
+/help         Show this help
 
 Keyboard Shortcuts
-Ctrl+C      - Interrupt current response
-Ctrl+D      - Exit chat mode
+Ctrl+C        Interrupt current response
+Ctrl+D        Exit chat mode
+ESC           Cancel menu navigation
+
+Tip: Use /menu for an interactive settings experience!
     """)
-
-
-def print_header(text):
-    """Print a styled header"""
-    print(f"\n{Colors.BOLD}{Colors.CYAN}{'─' * 70}{Colors.RESET}")
-    print(f"{Colors.BOLD}{Colors.CYAN}  {text}{Colors.RESET}")
-    print(f"{Colors.BOLD}{Colors.CYAN}{'─' * 70}{Colors.RESET}\n")
 
 
 def format_response(text):
@@ -208,22 +406,22 @@ def format_response(text):
 
 def print_user(text):
     """Print user message with styling"""
-    print(f"\n{Colors.BOLD}{Colors.BRIGHT_GREEN}┌─ You ───────────────────────────────────────────────{Colors.RESET}")
+    print(f"\n{Colors.BOLD}{Colors.BRIGHT_GREEN}┌─ You ─────────────────────────────────────────────────{Colors.RESET}")
     print(f"{Colors.BOLD}{Colors.BRIGHT_GREEN}│{Colors.RESET} {text}")
-    print(f"{Colors.BOLD}{Colors.BRIGHT_GREEN}└─────────────────────────────────────────────────────{Colors.RESET}")
+    print(f"{Colors.BOLD}{Colors.BRIGHT_GREEN}└───────────────────────────────────────────────────────{Colors.RESET}")
 
 
 def print_assistant(text, streamed=False):
     """Print assistant message with styling"""
     formatted = format_response(text) if not streamed else text
 
-    print(f"\n{Colors.BOLD}{Colors.BRIGHT_BLUE}┌─ Perplexity ───────────────────────────────────────{Colors.RESET}")
+    print(f"\n{Colors.BOLD}{Colors.BRIGHT_BLUE}┌─ Perplexity ────────────────────────────────────────{Colors.RESET}")
     print(f"{Colors.BOLD}{Colors.BRIGHT_BLUE}│{Colors.RESET}")
 
     for line in formatted.split('\n'):
         print(f"{Colors.BOLD}{Colors.BRIGHT_BLUE}│{Colors.RESET} {line}")
 
-    print(f"{Colors.BOLD}{Colors.BRIGHT_BLUE}└─────────────────────────────────────────────────────{Colors.RESET}")
+    print(f"{Colors.BOLD}{Colors.BRIGHT_BLUE}└───────────────────────────────────────────────────────{Colors.RESET}")
 
 
 def print_citations(citations):
@@ -232,11 +430,6 @@ def print_citations(citations):
         print(f"\n{Colors.BOLD}{Colors.YELLOW}📚 Sources{Colors.RESET}")
         for i, citation in enumerate(citations, 1):
             print(f"  {Colors.DIM}[{i}] {citation[:80]}{'...' if len(citation) > 80 else ''}{Colors.RESET}")
-
-
-def print_streaming_indicator():
-    """Print streaming indicator"""
-    return f"{Colors.DIM}⏳ {Colors.RESET}"
 
 
 class ChatSession:
@@ -296,7 +489,7 @@ class ChatSession:
     def export_markdown(self, output_file):
         """Export conversation to markdown file"""
         with open(output_file, 'w') as f:
-            f.write(f"# Perplexity Chat Export\n\n")
+            f.write(f"# Perplexity CLI Chat Export\n\n")
             f.write(f"**Date:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
             f.write(f"**Model:** {self.model}\n\n")
             f.write("---\n\n")
@@ -317,7 +510,7 @@ def query_perplexity(client, prompt, session, stream=False):
     if stream:
         full_response = ""
 
-        print(f"\n{Colors.BOLD}{Colors.BRIGHT_BLUE}┌─ Perplexity ───────────────────────────────────────{Colors.RESET}")
+        print(f"\n{Colors.BOLD}{Colors.BRIGHT_BLUE}┌─ Perplexity ────────────────────────────────────────{Colors.RESET}")
         print(f"{Colors.BOLD}{Colors.BRIGHT_BLUE}│{Colors.RESET} ", end="", flush=True)
 
         response = client.chat.completions.create(
@@ -332,7 +525,6 @@ def query_perplexity(client, prompt, session, stream=False):
                 content = chunk.choices[0].delta.content
                 full_response += content
 
-                # Simple word wrapping for streaming
                 for char in content:
                     print(char, end="", flush=True)
                     col += 1
@@ -340,7 +532,7 @@ def query_perplexity(client, prompt, session, stream=False):
                         print(f"\n{Colors.BOLD}{Colors.BRIGHT_BLUE}│{Colors.RESET} ", end="", flush=True)
                         col = 0
 
-        print(f"{Colors.BOLD}{Colors.BRIGHT_BLUE}\n└─────────────────────────────────────────────────────{Colors.RESET}")
+        print(f"{Colors.BOLD}{Colors.BRIGHT_BLUE}\n└───────────────────────────────────────────────────────{Colors.RESET}")
         session.add_message("assistant", full_response)
         return full_response, None
     else:
@@ -379,7 +571,7 @@ def interactive_chat(client, session, args):
                         if save.lower() == 'y':
                             filepath = session.save_session()
                             print(f"{Colors.GREEN}✓ Saved to: {filepath}{Colors.RESET}")
-                    print(f"\n{Colors.BOLD}Goodbye! 👋{Colors.RESET}\n")
+                    print(f"\n{Colors.BOLD}{Colors.CYAN}Goodbye! 👋{Colors.RESET}\n")
                     break
 
                 elif cmd == '/clear':
@@ -437,6 +629,57 @@ def interactive_chat(client, session, args):
                     print_status(client, session)
                     continue
 
+                elif cmd == '/menu':
+                    # Show settings menu
+                    while True:
+                        action = show_settings_menu()
+
+                        if action == 'model':
+                            new_model = show_model_menu(session.model)
+                            if new_model:
+                                session.model = new_model
+                                print(f"{Colors.GREEN}✓ Model changed to {new_model}{Colors.RESET}\n")
+                                print_status(client, session)
+                                input(f"{Colors.DIM}Press ENTER to continue...{Colors.RESET}")
+                                print_welcome(session.model)
+                                break
+                        elif action == 'api':
+                            print(f"\n{Colors.DIM}API key is configured via PERPLEXITY_API_KEY or ~/.perplexity/.env{Colors.RESET}\n")
+                            input(f"{Colors.DIM}Press ENTER to continue...{Colors.RESET}")
+                            print_welcome(session.model)
+                        elif action == 'history':
+                            sessions = session.list_sessions()
+                            print(f"\n{Colors.BOLD}📂 {len(sessions)} Saved Conversations{Colors.RESET}\n")
+                            for s in sessions[-10:]:  # Last 10
+                                print(f"  • {Colors.CYAN}{s['file'].name}{Colors.RESET} ({s['message_count']} msgs)")
+                            if len(sessions) > 10:
+                                print(f"  {Colors.DIM}... and {len(sessions) - 10} more{Colors.RESET}")
+                            input(f"\n{Colors.DIM}Press ENTER to continue...{Colors.RESET}")
+                            print_welcome(session.model)
+                        elif action == 'export':
+                            output_file = input(f"{Colors.YELLOW}Output filename (e.g. chat.md): {Colors.RESET}")
+                            if not output_file.endswith('.md'):
+                                output_file += '.md'
+                            output_path = Path(output_file).expanduser()
+                            session.export_markdown(output_path)
+                            print(f"{Colors.GREEN}✓ Exported to: {output_path}{Colors.RESET}\n")
+                            input(f"{Colors.DIM}Press ENTER to continue...{Colors.RESET}")
+                            print_welcome(session.model)
+                        elif action == 'about':
+                            show_about()
+                            print_welcome(session.model)
+                        elif action == 'back':
+                            print_welcome(session.model)
+                            break
+                    continue
+
+                elif cmd == '/model':
+                    new_model = show_model_menu(session.model)
+                    if new_model:
+                        session.model = new_model
+                        print(f"{Colors.GREEN}✓ Model changed to {new_model}{Colors.RESET}\n")
+                    continue
+
                 elif cmd == '/help':
                     print_help()
                     continue
@@ -447,7 +690,7 @@ def interactive_chat(client, session, args):
 
                 else:
                     print(f"{Colors.RED}Unknown command: {user_input}{Colors.RESET}")
-                    print(f"{Colors.DIM}Type '/help' for available commands.{Colors.RESET}\n")
+                    print(f"{Colors.DIM}Type '/help' or '/menu' for options.{Colors.RESET}\n")
                     continue
 
             elif not user_input:
@@ -464,7 +707,7 @@ def interactive_chat(client, session, args):
                     if citations:
                         print_citations(citations)
 
-                print()  # spacing
+                print()
                 conversation_count += 1
 
             except KeyboardInterrupt:
@@ -475,13 +718,13 @@ def interactive_chat(client, session, args):
         except KeyboardInterrupt:
             print(f"\n\n{Colors.YELLOW}⚠ Use '/quit' to exit.{Colors.RESET}\n")
         except EOFError:
-            print(f"\n\n{Colors.BOLD}Goodbye! 👋{Colors.RESET}\n")
+            print(f"\n\n{Colors.BOLD}{Colors.CYAN}Goodbye! 👋{Colors.RESET}\n")
             break
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Query Perplexity API from the terminal",
+        description="Perplexity CLI - A beautiful CLI for Perplexity AI API",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=f"""{Colors.BOLD}Examples:{Colors.RESET}
   {Colors.GREEN}perplexity{Colors.RESET} "What is the capital of France?"
@@ -489,6 +732,12 @@ def main():
   {Colors.GREEN}perplexity{Colors.RESET} --chat
   {Colors.GREEN}perplexity{Colors.RESET} --chat --stream
   {Colors.GREEN}perplexity{Colors.RESET} "Explain quantum computing" --system "You are a physics teacher"
+
+{Colors.BOLD}Interactive Commands:{Colors.RESET}
+  /menu        Open settings menu (arrow navigation)
+  /model       Switch AI model
+  /help        Show all commands
+  /quit        Exit chat mode
 """
     )
     parser.add_argument(
@@ -568,7 +817,7 @@ def main():
             interactive_chat(client, session, args)
         else:
             # Single query mode
-            print_header("Perplexity")
+            print_header("Perplexity CLI • Query", show_cli_branding=True)
 
             try:
                 answer, citations = query_perplexity(

@@ -1,6 +1,6 @@
 # Perplexity CLI
 
-> A beautiful, feature-rich command-line interface for the Perplexity AI API — Cross-platform (Linux, macOS, Windows)
+> A beautiful, feature-rich command-line interface for the Perplexity AI API with interactive arrow navigation — Cross-platform (Linux, macOS, Windows)
 
 [![Python](https://img.shields.io/badge/python-3.8+-blue.svg)](https://python.org)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
@@ -11,7 +11,8 @@
 
 ## ✨ Features
 
-- **Beautiful Terminal UI** - ASCII art banner, colored output, status bars, and formatted messages
+- **Beautiful Terminal UI** - ASCII art "PERPLEXITY CLI" banner, colored output, status bars, and formatted messages
+- **Arrow Navigation Menus** - Interactive settings and model selection with ↑↓ keys
 - **Interactive Chat Mode** - Full REPL with slash commands and conversation history
 - **Markdown Formatting** - Supports bold, italic, code blocks, headers, and lists
 - **Rich Text Output** - Syntax highlighting, colored code blocks, and styled links
@@ -133,6 +134,8 @@ perplexity "Debug this code" --system "You are a Python expert"
 
 | Command | Description |
 |---------|-------------|
+| `/menu` | ⭐ Open interactive settings menu (arrow keys) |
+| `/model` | Switch AI model with arrow selection |
 | `/help` | Show interactive help box |
 | `/clear` | Clear conversation history |
 | `/save` | Save current conversation |
@@ -147,6 +150,9 @@ perplexity "Debug this code" --system "You are a Python expert"
 **Keyboard Shortcuts:**
 - `Ctrl+C` - Interrupt current response
 - `Ctrl+D` - Exit chat mode
+- `↑↓` - Navigate menus
+- `ENTER` - Select menu item
+- `ESC` - Cancel/close menu
 
 ## 🔧 Options
 
@@ -234,38 +240,73 @@ Output filename (e.g. chat.md): my_research.md
 
 ## 🎨 Terminal Interface
 
-### Welcome Screen
+### Welcome Screen (v2.0)
 ```
-   __  __                    _
-  / / / /___  ____ ___  ____/ /___ _
- / /_/ / __ \/ __ `__ "/ __  / __ `/
-/ __  / /_/ / / / / / / /_/ / /_/ /
-/_/ /_/\____/_/ /_/ /_/\__,_/\__,_/
+   ██████╗ ███████╗██████╗ ██████╗ ███████╗
+  ██╔════╝ ██╔════╝██╔══██╗██╔══██╗██╔════╝
+  ██║  ███╗█████╗  ██████╔╝██████╔╝███████╗
+  ██║   ██║██╔══╝  ██╔══██╗██╔══██╗╚════██║
+  ╚██████╔╝███████╗██║  ██║██║  ██║███████║
+   ╚═════╝ ╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝╚══════╝
+                  CLI v2.0
 
-━━━  Model: sonar-pro                    2024-02-03 03:30 PM  ━━━
+━━━  Model: SONAR PRO                    2024-02-03 03:30 PM  ━━━
 
-Commands:
-  /help       Show this help
-  /clear      Clear conversation history
-  /save       Save current conversation
-  /export     Export to Markdown
-  /history    List saved conversations
-  /load       Load a saved conversation
-  /status     Show current session info
-  /quit       Exit chat mode
+  MENU OPTIONS:
+  Type '/menu' to open settings
+  Type '/help' for all commands
+
+Quick Commands:
+  /menu        Open settings menu (arrow navigation)
+  /model       Switch AI model
+  /clear       Clear conversation
+  /save        Save conversation
+  /export      Export to Markdown
+  /history     List saved chats
+  /load        Load saved chat
+  /quit        Exit
+```
+
+### Interactive Settings Menu
+```
+╔════════════════════════════════════════════════════════════════════════╗
+║                        PERPLEXITY CLI • SETTINGS                  ║
+╚════════════════════════════════════════════════════════════════════════╝
+
+► 🤖 Change Model
+  🔧 API Settings
+  💾 Conversation History
+  📤 Export Conversation
+  ℹ️  About
+  ← Back to Chat
+
+  ↑↓ Navigate • ENTER Select • ESC Cancel
+```
+
+### Model Selection
+```
+╔════════════════════════════════════════════════════════════════════════╗
+║                       PERPLEXITY CLI • SELECT MODEL                ║
+╚════════════════════════════════════════════════════════════════════════╝
+
+● Sonar Pro (Best)       ── Recommended for complex queries
+  ○ Sonar Medium           ── Faster responses
+  ← Cancel
+
+  ↑↓ Navigate • ENTER Select • ESC Cancel
 ```
 
 ### Styled Messages
 ```
-┌─ You ───────────────────────────────────────────────
+┌─ You ─────────────────────────────────────────────────────────
 │ What is quantum computing?
-└─────────────────────────────────────────────────────
+└───────────────────────────────────────────────────────────────
 
-┌─ Perplexity ───────────────────────────────────────
+┌─ Perplexity ────────────────────────────────────────────────
 │ Quantum computing is a revolutionary field that uses
 │ quantum mechanics to process information in ways
 │ classical computers cannot...
-└─────────────────────────────────────────────────────
+└───────────────────────────────────────────────────────
 
 📚 Sources
   [1] https://example.com/quantum-intro
