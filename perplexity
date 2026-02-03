@@ -1,0 +1,103 @@
+#!/usr/bin/env python3
+"""
+Perplexity CLI - Query Perplexity API from terminal
+Usage: perplexity "your question here"
+"""
+
+import argparse
+import os
+import sys
+
+# Default API key
+DEFAULT_API_KEY = os.environ.get("PERPLEXITY_API_KEY")
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Query Perplexity API from the terminal",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""Examples:
+  perplexity "What is the capital of France?"
+  perplexity "Latest AI developments"
+  perplexity "Explain quantum computing" --model sonar-pro
+  perplexity "Climate change 2026" --search"""
+    )
+    parser.add_argument(
+        "query",
+        help="Your question or search query"
+    )
+    parser.add_argument(
+        "--model",
+        default="sonar-pro",
+        choices=["sonar-pro", "sonar-medium-online", "sonar-small-online"],
+        help="Model to use (default: sonar-pro)"
+    )
+    parser.add_argument(
+        "--api-key",
+        default=DEFAULT_API_KEY,
+        help="Perplexity API key (default: uses PERPLEXITY_API_KEY env var or default)"
+    )
+    parser.add_argument(
+        "--search",
+        action="store_true",
+        help="Use search-focused mode (adds system prompt for research)"
+    )
+    parser.add_argument(
+        "--stream",
+        action="store_true",
+        help="Stream the response as it comes in"
+    )
+
+    args = parser.parse_args()
+
+    if not args.query:
+        parser.print_help()
+        sys.exit(1)
+
+    try:
+        from openai import OpenAI
+    except ImportError:
+        print("Error: OpenAI library not installed.")
+        print("Install it with: pip install openai")
+        sys.exit(1)
+
+    try:
+        client = OpenAI(api_key=args.api_key, base_url="https://api.perplexity.ai")
+
+        system_prompt = "You are a helpful assistant."
+        if args.search:
+            system_prompt = "You are a research assistant. Provide detailed, well-sourced answers with citations."
+
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": args.query}
+        ]
+
+        if args.stream:
+            response = client.chat.completions.create(
+                model=args.model,
+                messages=messages,
+                stream=True
+            )
+            for chunk in response:
+                if chunk.choices and chunk.choices[0].delta.content:
+                    print(chunk.choices[0].delta.content, end="", flush=True)
+            print()
+        else:
+            response = client.chat.completions.create(
+                model=args.model,
+                messages=messages
+            )
+            print(response.choices[0].message.content)
+
+            # Show citations if available
+            if hasattr(response.choices[0].message, "citations") and response.choices[0].message.citations:
+                print("\n--- Citations ---")
+                for i, citation in enumerate(response.choices[0].message.citations, 1):
+                    print(f"[{i}] {citation}")
+
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()
